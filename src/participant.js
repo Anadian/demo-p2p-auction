@@ -89,6 +89,36 @@ export default function Participant( options = {} ){
 		console.error( "%s (%s) destroyed.", this.participantIDBase64URL, this.serverPublicKeyBase64URL );
 		return Promise.resolve( true );
 	} ] );
+	this.pack = ( this.pack || options.pack ) ?? ( ( payload_object ) => {
+		try{
+			const payload_string = JSON.stringify( payload_object );
+			try{
+				const payload_buffer = Buffer.from( payload_string, 'utf8' );
+				return payload_buffer;
+			} catch(error){
+				return_error = new Error(`Buffer.from threw an error: ${error}`);
+				throw return_error;
+			}
+		} catch(error){
+			return_error = new Error(`JSON.stringify threw an error: ${error}`);
+			throw return_error;
+		}
+	} );
+	this.unpack = ( this.unpack || options.unpack ) ?? ( ( payload_buffer ) => {
+		try{
+			const payload_string = payload_buffer.toString( 'utf8' );
+			try{
+				const payload_object = ParseJSON( payload_string );
+				return payload_object;
+			} catch(error){
+				return_error = new Error(`ParseJSON threw an error: ${error}`);
+				throw return_error;
+			}
+		} catch(error){
+			return_error = new Error(`toString threw an error: ${error}`);
+			throw return_error;
+		}
+	} );
 	this.hypercorePath = ( this.hypercorePath || options.hypercorePath ) ?? ( './db/participant'+this.participantIDBase64URL );
 	this.hyperbeeOptions = ( this.hyperbeeOptions || options.hyperbeeOptions ) ?? ( { keyEncoding: 'utf-8', valueEncoding: 'binary' } );
 	this.dhtSeed = ( this.dhtSeed || options.dhtSeed ) ?? ( new Uint8Array( 32 ) );
@@ -221,23 +251,80 @@ Participant.createAsync = function( options = {} ){
 													return response_buffer;
 												}
 											} );
-											participant.rpcServer.respond( 'request-auction', ( request_string ) => {
+											participant.rpcServer.respond( 'request-auction', ( request_buffer ) => {
+												const request_string = request_buffer.toSting( 'utf8' );
 												console.log( "request-auction: %s received: %s", participant.serverPublicKeyBase64URL, request_string );
+												const request_object = ParseJSON( request_string );
+												const datetime = new Date();
+												var response_object = Object.assign( {}, request_object, {
+													respondTime: datetime.toISOString(),
+													responderID: participant.participantIDBase64URL,
+													responderPublicKey: participant.serverPublicKeyBase64URL,
+													knownAuctions: participant.knownAuctions
+												} );
+												const response_string = JSON.stringify( response_object );
+												const response_buffer = Buffer.from( response_string, 'utf8' );
+												return response_buffer;
 											} );
-											participant.rpcServer.respond( 'open-auction', ( request_string ) => {
-												console.log( "open-auction: %s received: %s", participant.serverPublicKeyBase64URL, request_string );
+											participant.rpcServer.respond( 'open-auction', ( request_buffer ) => {
+												const request_object = participant.unpack( request_buffer );
+												console.log( "open-auction: %s received: %O", participant.serverPublicKeyBase64URL, request_object );
+												const datetime = new Date();
+												var response_object = Object.assign( {}, request_object, {
+													respondTime: datetime.toISOString(),
+													responderID: participant.participantIDBase64URL,
+													responderPublicKey: participant.serverPublicKeyBase64URL
+												} );
+												const response_buffer = participant.pack( response_object );
+												return response_buffer;
 											} );
-											participant.rpcServer.respond( 'close-auction', ( request_string ) => {
-												console.log( "close-auction: %s received: %s", participant.serverPublicKeyBase64URL, request_string );
+											participant.rpcServer.respond( 'close-auction', ( request_buffer ) => {
+												const request_object = participant.unpack( request_buffer );
+												console.log( "close-auction: %s received: %O", participant.serverPublicKeyBase64URL, request_object );
+												const datetime = new Date();
+												var response_object = Object.assign( {}, request_object, {
+													respondTime: datetime.toISOString(),
+													responderID: participant.participantIDBase64URL,
+													responderPublicKey: participant.serverPublicKeyBase64URL
+												} );
+												const response_buffer = participant.pack( response_object );
+												return response_buffer;
 											} );
-											participant.rpcServer.respond( 'bid', ( request_string ) => {
-												console.log( "bid: %s received: %s", participant.serverPublicKeyBase64URL, request_string );
+											participant.rpcServer.respond( 'bid', ( request_buffer ) => {
+												const request_object = participant.unpack( request_buffer );
+												console.log( "bid: %s received: %O", participant.serverPublicKeyBase64URL, request_object );
+												const datetime = new Date();
+												var response_object = Object.assign( {}, request_object, {
+													respondTime: datetime.toISOString(),
+													responderID: participant.participantIDBase64URL,
+													responderPublicKey: participant.serverPublicKeyBase64URL
+												} );
+												const response_buffer = participant.pack( response_object );
+												return response_buffer;
 											} );
-											participant.rpcServer.respond( 'exchange', ( request_string ) => {
-												console.log( "exchange: %s received: %s", participant.serverPublicKeyBase64URL, request_string );
+											participant.rpcServer.respond( 'exchange', ( request_buffer ) => {
+												const request_object = participant.unpack( request_buffer );
+												console.log( "exchange: %s received: %O", participant.serverPublicKeyBase64URL, request_object );
+												const datetime = new Date();
+												var response_object = Object.assign( {}, request_object, {
+													respondTime: datetime.toISOString(),
+													responderID: participant.participantIDBase64URL,
+													responderPublicKey: participant.serverPublicKeyBase64URL
+												} );
+												const response_buffer = participant.pack( response_object );
+												return response_buffer;
 											} );
-											participant.rpcServer.respond( 'farewell', ( request_string ) => {
-												console.log( "farewell: %s received: %s", participant.serverPublicKeyBase64URL, request_string );
+											participant.rpcServer.respond( 'farewell', ( request_buffer ) => {
+												const request_object = participant.unpack( request_buffer );
+												console.log( "farewell: %s received: %O", participant.serverPublicKeyBase64URL, request_object );
+												const datetime = new Date();
+												var response_object = Object.assign( {}, request_object, {
+													respondTime: datetime.toISOString(),
+													responderID: participant.participantIDBase64URL,
+													responderPublicKey: participant.serverPublicKeyBase64URL
+												} );
+												const response_buffer = participant.pack( response_object );
+												return response_buffer;
 											} );
 											var timedate = new Date();
 											participant.initTime = ( participant.initTime || options.initTime ) ?? ( timedate.toISOString() );
@@ -508,6 +595,94 @@ Participant.prototype.requestAuctions = function( key, options = {} ){
 			throw return_error;
 		}
 	); //this.rpc.request
+
+	//Return
+	//this.logger.log({file: FILENAME, function: FUNCTION_NAME, level: 'debug', message: `returned: ${_return}`});
+	return _return;
+}
+/**
+### Participant.prototype.openAuction
+> Announce the opening of an auction to all known peers of this participant.
+
+#### Parametres
+| name | type | description |
+| --- | --- | --- |
+| auction_info | object | |
+| options | object | [Reserved] Additional run-time options. \[default: {}\] |
+
+#### Returns
+| type | description |
+| --- | --- |
+| Promise | A promise which resolves when the auction opens. |
+
+#### Throws
+| code | type | condition |
+| --- | --- | --- |
+| 'ERR_INVALID_ARG_TYPE' | TypeError | Thrown if a given argument isn't of the correct type. |
+
+#### History
+| version | change |
+| --- | --- |
+| 0.0.1 | WIP |
+*/
+Participant.prototype.openAuction = function( auction_info = {}, options = {} ){
+	const FUNCTION_NAME = 'Participant.prototype.openAuction';
+	//Variables
+	var arguments_array = Array.from(arguments);
+	var _return = null;
+	var return_error = null;
+	var promise_array = [];
+	//this.logger.log({file: FILENAME, function: FUNCTION_NAME, level: 'debug', message: `received: ${arguments_array}`});
+	console.log( "%s open-auction %O", this.serverPublicKeyBase64URL, auction_info );
+	//Parametre checks
+	if( typeof(auction_info) !== 'object' ){
+		return_error = new TypeError('Param "auction_info" is not an object.');
+		return_error.code = 'ERR_INVALID_ARG_TYPE';
+		throw return_error;
+	}
+	if( typeof(options) !== 'object' ){
+		return_error = new TypeError('Param "options" is not object.');
+		return_error.code = 'ERR_INVALID_ARG_TYPE';
+		throw return_error;
+	}
+
+	//Function
+	const datetime = new Date();
+	const auction_id_buffer = CryptoNS.randomBytes( 32 );
+	const item_id_buffer = CryptoNS.randomBytes( 32 );
+	var auction = Object.assign( {}, {
+		auctionID: auction_id_buffer.toString( 'base64url' ),
+		openTime: datetime.toISOString(),
+		auctioneerID: this.participantIDBase64URL,
+		auctioneerPublicKey: this.serverPublicKeyBase64URL,
+		itemID: item_id_buffer.toSting( 'base64url' ),
+		baseValue: 5,
+		currentValue: 5,
+		bids: []
+	}, auction_info );
+		
+	var request_object = {
+		requestTime: datetime.toISOString,
+		requesterID: this.participantIDBase64URL,
+		requesterPublicKey: this.serverPublicKeyBase64URL,
+		auction: auction
+	};
+	const request_buffer = this.pack( request_object );
+	for( const peer_key of Object.keys(this.peers) ){
+		const key = Buffer.from( peer_key, 'base64url' );
+		var request_promise = this.rpc.request( key, 'open-auction', request_buffer ).then(
+			( response_buffer ) => {
+				const response_object = this.unpack( response_buffer );
+				console.log( "%s open-auction %s: received response: %O", this.serverPublicKeyBase64URL, peer_key, response_object );
+			},
+			( error ) => {
+				return_error = new Error(`this.rpc.request threw an error: ${error}`);
+				throw return_error;
+			}
+		); //this.rpc.request
+		promise_array.push( request_promise );
+	}
+	_return = Promise.all( promise_array );
 
 	//Return
 	//this.logger.log({file: FILENAME, function: FUNCTION_NAME, level: 'debug', message: `returned: ${_return}`});
