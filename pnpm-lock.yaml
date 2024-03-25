@@ -20,6 +20,9 @@ dependencies:
   hyperswarm:
     specifier: ^4.7.14
     version: 4.7.14
+  lodash:
+    specifier: ^4.17.21
+    version: 4.17.21
   parse-json:
     specifier: ^8.1.0
     version: 8.1.0
@@ -2524,7 +2527,6 @@ packages:
 
   /lodash@4.17.21:
     resolution: {integrity: sha512-v2kDEe57lecTulaDIuNTPy3Ry4gLGJ6Z1O3vE1krgXZNrsQ+LFTGHVxVjcXPs17LhbZVGedAJv8XZ1tvj5FvSg==}
-    dev: true
 
   /logform@2.6.0:
     resolution: {integrity: sha512-1ulHeNPp6k/LD8H91o7VYFBng5i1BDE7HoKxVbZiGFidS1Rj65qcywLxX+pVfAPoQJEjRdvKcusKwOupHCVOVQ==}
