@@ -35,7 +35,8 @@
 		"update-config": "hjson -j ci/github-actions.hjson | json2yaml -o .github/workflows/ci.yml && git change 'chore: Updated GitHub Actions.'",
 		"update-deps": "npm-check-updates -u",
 		"release": "standard-version",
-		"publish-release": "git push --follow-tags origin main && pnpm publish"
+		"publish-release": "git push --follow-tags origin main && pnpm publish",
+		"start": "hyperdht --bootstrap --host 127.0.0.1 --port 30001 | node src/participant.js | node src/participant.js | node src/participant.js"
 	},
 	"standard-version": {
 		"types": [

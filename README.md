@@ -13,8 +13,16 @@
 - [Contributing](#Contributing)
 - [License](#License)
 # Background
+A demonstration based on [this technical assessment](res/NodeJS-Tether.md). 
 # Install
+No package yet; just this git repository.
+```bash
+git clone https://github.com/Anadian/demo-p2p-auction
+```
 # Usage
+```bash
+pnpm start
+```
 # API
 # Contributing
 Changes are tracked in [CHANGELOG.md](CHANGELOG.md).
