@@ -109,6 +109,7 @@
 		"hyperdht": "^6.13.1",
 		"hyperswarm": "^4.7.14",
 		"lodash": "^4.17.21",
+		"nanoid": "^5.0.6",
 		"parse-json": "^8.1.0"
 	}
 }
