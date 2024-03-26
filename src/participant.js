@@ -197,23 +197,38 @@ Participant.createAsync = function( options = {} ){
 	participant.hypercore = ( participant.hypercore || options.hypercore ) ?? ( new HyperCore( participant.hypercorePath ) );
 	_return = participant.hypercore.ready().then(
 		() => {
-			participant.destroyArray.push( participant.hypercore.close );
+			participant.destroyArray.push( () => {
+				console.log( "%s destroy: hypercore.close", participant.id );
+				return participant.hypercore.close();
+			} );
 			participant.hyperbee = ( participant.hyperbee || options.hyperbee ) ?? ( new HyperBee( participant.hypercore, participant.hyperbeeOptions ) );
 			return participant.hyperbee.ready().then(
 				() => {
-					participant.destroyArray.push( participant.hyperbee.close );
+					participant.destroyArray.push( () => {
+						console.log( "%s destroy: hyperbee.close", participant.id );
+						return participant.hyperbee.close();
+					} );
 					participant.dht = ( participant.dht || options.dht ) ?? ( new HyperDHT( participant.hyperdhtOptions ) );
 					return participant.dht.ready().then(
 						() => {
-							participant.destroyArray.push( participant.dht.destroy );
+							participant.destroyArray.push( () => {
+								console.log( "%s destroy: dht.destroy", participant.id );
+								return participant.dht.destroy();
+							} );
 							participant.rpcOptions = ( participant.rpcOptions || options.rpcOptions ) ?? ( { seed: participant.rpcSeed, dht: participant.dht } );
 							participant.rpc = ( participant.rpc || options.rpc ) ?? ( new HyperswarmRPC( participant.rpcOptions ) );
-							participant.destroyArray.push( participant.rpc.destroy )
+							participant.destroyArray.push( () => {
+								console.log( "%s destroy: rpc.destroy", participant.id );
+								return participant.rpc.destroy();
+							} );
 							participant.rpcServer = ( participant.rpcServer || options.rpcServer ) ?? ( participant.rpc.createServer() );
 							//Swarm
 							participant.swarmOptions = ( participant.swarmOptions || options.swarmOptions ) ?? ( { seed: participant.swarmSeed, dht: participant.dht } );
 							participant.swarm = ( participant.swarm || options.swarm ) ?? ( new HyperSwarm( participant.swarmOptions ) );
-							participant.destroyArray.push( participant.swarm.destroy );
+							participant.destroyArray.push( () => {
+								console.log( "%s destroy: swarm.destroy", participant.id );
+								return participant.swarm.destroy();
+							} );
 							participant.swarm.on( 'open', participant.anyEventFunction.bind( participant, 'open' ) );
 							participant.swarm.on( 'close', participant.anyEventFunction.bind( participant, 'close' ) );
 							participant.swarm.on( 'listen', participant.anyEventFunction.bind( participant, 'listen' ) );
@@ -239,7 +254,10 @@ Participant.createAsync = function( options = {} ){
 							participant.peerDiscovery = ( participant.peerDiscovery || options.peerDiscovery ) ?? ( participant.swarm.join( participant.swarmTopic, participant.swarmJoinOptions ) );
 							var peer_discovery_flushed_promise = participant.peerDiscovery.flushed().then(
 								() => {
-									participant.destroyArray.push( participant.peerDiscovery.destroy );
+									participant.destroyArray.push( () => {
+										console.log( "%s destroy: peerDiscovery.destroy", participant.id );
+										return participant.peerDiscovery.destroy();
+									} );
 									var rpc_server_listen_promise = participant.rpcServer.listen().then(
 										() => {
 											participant.serverPublicKeyBase64URL = participant.rpcServer.publicKey.toString( 'base64url' )
@@ -378,14 +396,15 @@ Participant.createAsync = function( options = {} ){
 											} );
 											participant.rpcServer.respond( 'farewell', ( request_buffer ) => {
 												const request_object = participant.unpack( request_buffer );
-												console.log( "farewell: %s received: %O", participant.serverPublicKeyBase64URL, request_object );
+												console.log( "%s farewell received: %O", participant.id, request_object );
+												delete(participant.peers[request_object.requesterPublicKey]);
 												const datetime = new Date();
 												var response_object = Object.assign( {}, request_object, {
 													respondTime: datetime.toISOString(),
 													responderID: participant.id,
 													responderPublicKey: participant.serverPublicKeyBase64URL
 												} );
-												console.log( "%s request-auction: send:  %O", participant.serverPublicKeyBase64URL, response_object );
+												console.log( "%s farwwell send:  %O", participant.id, response_object );
 												const response_buffer = participant.pack( response_object );
 												return response_buffer;
 											} );
@@ -470,7 +489,16 @@ Participant.prototype.destroy = function( options = {} ){
 	}
 
 	//Function
-	this.state = PARTICIPANT_STATES.DYING;
+	if( this.state < PARTICIPANT_STATES.DYING ){
+		_return = this.sayFarewell().then(
+			null,
+			( error ) => {
+				return_error = new Error(`${this.id} this.sayFarewell threw an error: ${error}`);
+				throw return_error;
+			}
+		); //this.sayFarewell
+	}
+	//this.state = PARTICIPANT_STATES.DYING;
 	var function_return;
 	while( this.destroyArray.length > 0 ){
 		var destroyFunction = this.destroyArray.pop();
@@ -865,7 +893,7 @@ Participant.prototype.closeAuction = function( auction_id, options_object = {} )
 		promise_array.push( request_promise );
 		_return = Promise.all( promise_array ).then(
 			() => {
-				console.log( "Deleting auction %d: %O", auction_id, auction ); 
+				console.log( "Deleting auction %s: %O", auction_id, auction ); 
 				this.ownedAuctions.splice( index, 1 );
 				delete(this.knownAuctions[auction_id]);
 			},
@@ -969,6 +997,106 @@ Participant.prototype.placeBid = function( auction_id, bid_value, options = {} )
 		return_error = new Error( `placeBid: This participant (${this.id}) doesn't know of the given auction (${auction_id}): known auctions: ${Object.keys(this.knownAuctions).join()}` );
 		throw return_error;
 	}
+
+	//Return
+	//this.logger.log({file: FILENAME, function: FUNCTION_NAME, level: 'debug', message: `returned: ${_return}`});
+	return _return;
+}
+/**
+### Participant.prototype.sayFarewell
+> Close an remaining auctions and say goodbye to peers.
+
+#### Parametres
+| name | type | description |
+| --- | --- | --- |
+| options | object | [Reserved] Additional run-time options. \[default: {}\] |
+
+#### Returns
+| type | description |
+| --- | --- |
+| Promise | A promise which resolves to `true` when this participant has successfully signed off. |
+
+#### Throws
+| code | type | condition |
+| --- | --- | --- |
+| 'ERR_INVALID_ARG_TYPE' | TypeError | Thrown if a given argument isn't of the correct type. |
+
+#### History
+| version | change |
+| --- | --- |
+| 0.0.1 | WIP |
+*/
+Participant.prototype.sayFarewell = function( options = {} ){
+	const FUNCTION_NAME = 'Participant.prototype.sayFarewell';
+	//Variables
+	var arguments_array = Array.from(arguments);
+	var _return = null;
+	var return_error = null;
+	var close_auction_array = [];
+	var close_auction_promise = null;
+	//this.logger.log({file: FILENAME, function: FUNCTION_NAME, level: 'debug', message: `received: ${arguments_array}`});
+	//Parametre checks
+	if( typeof(options) !== 'object' ){
+		return_error = new TypeError('Param "options" is not object.');
+		return_error.code = 'ERR_INVALID_ARG_TYPE';
+		throw return_error;
+	}
+
+	//Function
+	this.state = PARTICIPANT_STATES.DYING;
+	if( this.ownedAuctions.length > 0 ){
+		for( const auction_id of this.ownedAuctions ){
+			close_auction_promise = this.closeAuction( auction_id ).then(
+				null,
+				( error ) => {
+					return_error = new Error(`${this.id} sayFarewell: this.closeAuction(${auction_id}) threw an error: ${error}`);
+					console.error( return_error );
+					throw return_error;
+				}
+			); //this.closeAuction
+			close_auction_array.push( close_auction_promise );
+		}
+	}
+	const datetime = new Date();
+	const request_object = {
+		requestTime: datetime.toISOString(),
+		requesterID: this.id,
+		requesterPublicKey: this.serverPublicKeyBase64URL
+	};
+	const request_buffer = this.pack( request_object );
+	var request_promise_array = [];
+	for( const peer_key of Object.keys( this.peers ) ){
+		const key = Buffer.from( peer_key, 'base64url' );
+		var request_promise = this.rpc.request( key, 'farewell', request_buffer ).then(
+			( response_buffer ) => {
+				const response_object = this.unpack( response_buffer );
+				console.log( "%s sayFarewell: %s responded with %O", this.id, peer_key, response_object );
+				delete(this.peers[peer_key]);
+			},
+			( error ) => {
+				return_error = new Error(`${this.id} sayFarewell: this.rpc.request threw an error: ${error}`);
+				console.error( return_error );
+				throw return_error;
+			}
+		); //this.rpc.request
+		request_promise_array.push( request_promise );
+	}
+	_return = Promise.all( close_auction_array ).then(
+		() => {
+			return Promise.all( request_promise_array ).then(
+				null,
+				( error ) => {
+					return_error = new Error(`${this.id} sayFarewell: Promise.all(requeest) threw an error: ${error}`);
+					throw return_error;
+				}
+			); //Promise.all
+		},
+		( error ) => {
+			return_error = new Error(`${this.id} sayFarewell: Promise.all(closeAuction) threw an error: ${error}`);
+			throw return_error;
+		}
+	); //Promise.all
+
 
 	//Return
 	//this.logger.log({file: FILENAME, function: FUNCTION_NAME, level: 'debug', message: `returned: ${_return}`});
@@ -1138,12 +1266,6 @@ async function mainAsync( options = {} ){
 		); //Participant.createAsync
 		promise_array.push( participant_promise );
 	}
-	try{
-		await Promise.all( promise_array );
-	} catch(error){
-		return_error = new Error(`await Promise.all threw an error: ${error}`);
-		throw return_error;
-	}
 	var interval_callback = async function(){
 		var promise_array = [];
 		for( var participant of participants ){
@@ -1153,31 +1275,30 @@ async function mainAsync( options = {} ){
 	}
 	var start_timeout_clock = setTimeout( interval_callback, 10000 );
 	var interval_clock = setInterval( interval_callback, 30000 );
-	var end_timeout_clock = setTimeout( async () => {
-		clearTimeout(interval_clock);
-	}, ( 3 * 60000 ) );
-	process.on( 'SIGINT', async ( signal ) => {
-		console.error( "Received %s in %s", signal, FUNCTION_NAME );
+	const main_cleanup = function(){
+		var destroy_promise_array = [];
 		for( var participant of participants ){
-			try{
-				await participant.destroy();
-			} catch(error){
-				return_error = new Error(`await participant.destroy threw an error: ${error}`);
-				console.error( return_error );
-			}
+			destroy_promise_array.push( participant.destroy() );
 		}
 		try{
 			clearTimeout( start_timeout_clock );
 		} catch(error){
-			return_error = new Error(`clearTimeout threw an error: ${error}`);
+			return_error = new Error(`clearTimeout(start) threw an error: ${error}`);
 			console.error( return_error );
 		}
 		try{
 			clearTimeout( interval_clock );
 		} catch(error){
-			return_error = new Error(`clearTimeout threw an error: ${error}`);
+			return_error = new Error(`clearTimeout(interval) threw an error: ${error}`);
 			console.error( return_error );
 		}
+		process.exitCode = 0;
+		return Promise.all( destroy_promise_array );
+	};
+	var end_timeout_clock = setTimeout( main_cleanup, ( 3 * 60000 ) );
+	process.on( 'SIGINT', async ( signal ) => {
+		console.error( "Received %s in %s", signal, FUNCTION_NAME );
+		await main_cleanup();
 		try{
 			clearTimeout( end_timeout_clock );
 		} catch(error){
@@ -1188,6 +1309,12 @@ async function mainAsync( options = {} ){
 		console.error( "Exiting from SIGINT with code %d", process.exitCode );
 		process.exit( process.exitCode );
 	} );
+	try{
+		await Promise.all( promise_array );
+	} catch(error){
+		return_error = new Error(`await Promise.all threw an error: ${error}`);
+		throw return_error;
+	}
 
 	//Return
 	//this.logger.log({file: FILENAME, function: FUNCTION_NAME, level: 'debug', message: `returned: ${_return}`});
